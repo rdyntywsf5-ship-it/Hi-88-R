@@ -1,0 +1,168 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>نظام الحضور - طلاب / ليدر / مدير</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:Segoe UI}
+body{background:#f0f2f8}
+header{background:#111827;color:#fff;padding:14px 5%;display:flex;justify-content:space-between;align-items:center}
+header b{letter-spacing:1px}
+.tabs{display:flex;gap:8px}
+.tabs button{padding:8px 18px;border:none;border-radius:20px;cursor:pointer;background:#2a3447;color:#fff}
+.tabs button.active{background:#fff;color:#000;font-weight:bold}
+.screen{display:none;padding:20px 5%}.screen.active{display:block;animation:up.3s}
+@keyframes up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.card{background:#fff;border-radius:16px;padding:18px;box-shadow:0 6px 18px #0001;margin-bottom:16px}
+h2{margin-bottom:12px}
+input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;margin:6px 0}
+.btn{padding:10px 18px;border:none;border-radius:10px;cursor:pointer;background:#111827;color:#fff}
+.btn.green{background:#059669}.btn.red{background:#dc2626}.btn.gray{background:#e5e7eb;color:#111}
+table{width:100%;border-collapse:collapse;margin-top:10px}
+th,td{padding:10px;border-bottom:1px solid #eee;text-align:center;font-size:14px}
+th{background:#f9fafb}
+.badge{padding:4px 10px;border-radius:20px;font-size:12px}
+.present{background:#dcfce7;color:#166534}.absent{background:#fee2e2;color:#991b1b}.late{background:#fef9c3;color:#854d0e}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:800px){.grid{grid-template-columns:1fr}.tabs{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<header>
+<b>ATTENDANCE SYSTEM</b>
+<div class="tabs">
+<button class="active" onclick="go(0)">شاشة الطالب</button>
+<button onclick="go(1)">شاشة الليدر</button>
+<button onclick="go(2)">شاشة المدير</button>
+</div>
+</header>
+
+<!-- 1- الطالب -->
+<div class="screen active" id="s0">
+<div class="grid">
+<div class="card">
+<h2>تسجيل حضورك</h2>
+<input id="stName" placeholder="اسم الطالب - مثال: تسنيم">
+<select id="stGroup"><option>Group A</option><option>Group B</option><option>Group C</option></select>
+<button class="btn" style="width:100%;margin-top:10px" onclick="studentAttend()">سجل حضوري الآن </button>
+<p id="stMsg" style="margin-top:10px;color:green"></p>
+<div style="margin-top:15px;background:#f9fafb;padding:10px;border-radius:10px">
+<b>سجلك اليوم:</b> <span id="myStatus">لم تسجل بعد</span><br>
+<small id="myTime"></small>
+</div>
+</div>
+<div class="card" style="grid-column:span 2">
+<h2>سجل حضوري الأسبوعي</h2>
+<table><thead><tr><th>التاريخ</th><th>الوقت</th><th>المجموعة</th><th>الحالة</th></tr></thead><tbody id="myTable"></tbody></table>
+</div>
+</div>
+</div>
+
+<!-- 2- الليدر -->
+<div class="screen" id="s1">
+<div class="card">
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+<h2>شاشة الليدر - تحكم الحضور</h2>
+<div>
+<select id="filterGroup" onchange="renderLeader()"><option value="الكل">كل المجموعات</option><option>Group A</option><option>Group B</option><option>Group C</option></select>
+<button class="btn gray" onclick="exportCSV()">تصدير Excel</button>
+</div>
+</div>
+<table>
+<thead><tr><th>الطالب</th><th>المجموعة</th><th>وقت التسجيل</th><th>الحالة</th><th>تعديل الليدر</th></tr></thead>
+<tbody id="leaderTable"></tbody>
+</table>
+<button class="btn green" style="margin-top:12px" onclick="closeDay()">إغلاق حضور اليوم وإرسال للمدير </button>
+</div>
+</div>
+
+<!-- 3- المدير -->
+<div class="screen" id="s2">
+<div class="grid">
+<div class="card"><h3>إجمالي الطلاب اليوم</h3><b id="k1" style="font-size:32px">0</b></div>
+<div class="card"><h3>حضور</h3><b id="k2" style="font-size:32px;color:#059669">0</b></div>
+<div class="card"><h3>غياب</h3><b id="k3" style="font-size:32px;color:#dc2626">0</b></div>
+</div>
+<div class="card">
+<h2>لوحة المدير - التقارير النهائية</h2>
+<table><thead><tr><th>الطالب</th><th>المجموعة</th><th>الحالة النهائية</th><th>اعتماد الليدر</th><th>إجراء</th></tr></thead><tbody id="managerTable"></tbody></table>
+<div style="margin-top:15px;display:flex;gap:10px">
+<button class="btn" onclick="calcSalary()">احسب مكافأة الحضور</button>
+<button class="btn red" onclick="clearAll()">مسح بيانات اليوم</button>
+</div>
+<div id="report" style="margin-top:15px"></div>
+</div>
+</div>
+
+<script>
+// تخزين محلي
+let data = JSON.parse(localStorage.getItem('att_v2')||'[]');
+
+function go(n){
+document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+document.getElementById('s'+n).classList.add('active');
+document.querySelectorAll('.tabs button')[n].classList.add('active');
+if(n==0) renderMy(); if(n==1) renderLeader(); if(n==2) renderManager();
+}
+function studentAttend(){
+let name=document.getElementById('stName').value.trim();
+if(!name){alert('اكتب اسمك');return}
+let group=document.getElementById('stGroup').value;
+let now=new Date();
+let today=now.toLocaleDateString('ar-EG');
+let time=now.toLocaleTimeString('ar-EG');
+let exists=data.find(d=>d.name==name && d.date==today);
+if(exists){document.getElementById('stMsg').innerText='سجلت حضورك مسبقاً اليوم!';return}
+data.push({name,group,date:today,time,status:'حاضر',approved:true});
+localStorage.setItem('att_v2',JSON.stringify(data));
+document.getElementById('stMsg').innerText='تم تسجيل حضورك بنجاح ' + time;
+renderMy();
+}
+function renderMy(){
+let name=document.getElementById('stName').value.trim();
+let my=data.filter(d=>!name || d.name==name).slice(-7).reverse();
+document.getElementById('myTable').innerHTML=my.map(m=>`<tr><td>${m.date}</td><td>${m.time}</td><td>${m.group}</td><td><span class="badge ${m.status=='حاضر'?'present':m.status=='متأخر'?'late':'absent'}">${m.status}</span></td></tr>`).join('')||'<tr><td colspan=4>لا يوجد سجل</td></tr>';
+let today=new Date().toLocaleDateString('ar-EG');
+let tod=data.find(d=>d.name==name && d.date==today);
+if(tod){document.getElementById('myStatus').innerText=tod.status;document.getElementById('myTime').innerText=tod.time}
+}
+function renderLeader(){
+let f=document.getElementById('filterGroup').value;
+let today=new Date().toLocaleDateString('ar-EG');
+let list=data.filter(d=>d.date==today && (f=='الكل'||d.group==f));
+document.getElementById('leaderTable').innerHTML=list.map((d,i)=>`
+<tr>
+<td>${d.name}</td><td>${d.group}</td><td>${d.time}</td>
+<td><span class="badge ${d.status=='حاضر'?'present':d.status=='متأخر'?'late':'absent'}">${d.status}</span></td>
+<td>
+<select onchange="updateStatus(${data.indexOf(d)},this.value)">
+<option ${d.status=='حاضر'?'selected':''}>حاضر</option><option ${d.status=='متأخر'?'selected':''}>متأخر</option><option ${d.status=='غائب'?'selected':''}>غائب</option>
+</select>
+<button class="btn red" style="padding:4px 8px;margin-right:5px" onclick="del(${data.indexOf(d)})">حذف</button>
+</td></tr>`).join('')||'<tr><td colspan=5>لا يوجد حضور اليوم</td></tr>';
+}
+function updateStatus(idx,val){data[idx].status=val;save()}
+function del(idx){if(confirm('حذف؟')){data.splice(idx,1);save();renderLeader()}}
+function save(){localStorage.setItem('att_v2',JSON.stringify(data));renderLeader();renderManager()}
+function closeDay(){alert('تم إغلاق اليوم وإرسال التقرير للمدير ');go(2)}
+function renderManager(){
+let today=new Date().toLocaleDateString('ar-EG');
+let tod=data.filter(d=>d.date==today);
+document.getElementById('k1').innerText=tod.length;
+document.getElementById('k2').innerText=tod.filter(d=>d.status=='حاضر').length;
+document.getElementById('k3').innerText=tod.filter(d=>d.status=='غائب').length;
+document.getElementById('managerTable').innerHTML=tod.map(d=>`
+<tr><td>${d.name}</td><td>${d.group}</td><td>${d.status}</td><td>${d.approved?'معتمد':''}</td>
+<td><button class="btn gray" style="padding:5px 10px" onclick="toggle(${data.indexOf(d)})">تغيير</button></td></tr>`).join('')||'<tr><td colspan=5>لا بيانات</td></tr>';
+}
+function toggle(i){data[i].status=data[i].status=='حاضر'?'غائب':'حاضر';save()}
+function calcSalary(){let today=new Date().toLocaleDateString('ar-EG');let p=data.filter(d=>d.date==today&&d.status=='حاضر').length;document.getElementById('report').innerHTML=`<div class="card" style="background:#f0fdf4">تقرير: عدد الحاضرين ${p} - نسبة الحضور ${data.length?Math.round(p/data.filter(d=>d.date==today).length*100):0}%</div>`}
+function clearAll(){if(confirm('مسح كل بيانات اليوم؟')){let today=new Date().toLocaleDateString('ar-EG');data=data.filter(d=>d.date!=today);localStorage.setItem('att_v2',JSON.stringify(data));renderManager();renderLeader()}}
+function exportCSV(){let csv='Name,Group,Date,Time,Status\n'+data.map(d=>`${d.name},${d.group},${d.date},${d.time},${d.status}`).join('\n');let blob=new Blob([csv],{type:'text/csv'});let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='attendance.csv';a.click()}
+
+renderMy();
+</script>
+</body>
+</html>
